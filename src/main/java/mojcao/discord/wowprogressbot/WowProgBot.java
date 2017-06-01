@@ -91,12 +91,27 @@ public class WowProgBot {
                                 float points = Float.valueOf(score);
                                 message.reply(score);
 
-                                //Class
 
                                 //Faction
+                                String faction = "horde";
+                                if (doc.select(".guild").hasClass("alliance")) {
+                                    faction = "alliance";
+                                }
+                                message.reply(faction);
+
+                                //Class
+                                String clas = doc.select("i>span").text();
+                                message.reply(clas);
 
                                 //Role (Tank/Healer/DPS)
-
+                                String role = "";
+                                if (doc.select("table.rating td").text().contains("*")) {
+                                    role = doc.select("table.rating td").text().substring(0, 4).trim();
+                                    if (role.equalsIgnoreCase("heal")) {
+                                        role += "er";
+                                    }
+                                }
+                                message.reply(role);
 
                                 //TODO: Set role, reply confirmation
 
