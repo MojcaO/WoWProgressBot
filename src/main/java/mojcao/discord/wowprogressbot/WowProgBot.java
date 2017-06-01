@@ -84,11 +84,17 @@ public class WowProgBot {
                                 int from = score.indexOf("Mythic+ Score: ");
                                 int to = score.indexOf("Ach. Points");
                                 score = score.substring(from+"Mythic+ Score: ".length(), to).trim();
-                                //float points = Float.valueOf(score);
-                                int scoreTrunc = (Double.valueOf(score).intValue()/100)*100;
+                                double points = Double.valueOf(score);
 
-                                message.reply(score);
-                                message.reply(String.valueOf(scoreTrunc));
+                                if (points >= 2800) {
+                                    score = "2700+"; //highest rank
+                                } else if (points >= 1800) {
+                                    score = String.valueOf((Math.round(points)/100)*100)+"+";
+                                } else {
+                                    score = "1800-"; //lowest rank
+                                }
+
+                                message.reply(score+", exact: "+points);
 
 
                                 //Faction
@@ -112,18 +118,24 @@ public class WowProgBot {
                                 }
                                 message.reply(role);
 
-                                User user = message.getAuthor();
                                 //TODO: Set role, reply confirmation
+                                User user = message.getAuthor();
                                 Server server = message.getChannelReceiver().getServer();
-                                Collection<Role> roles = server.getRoles();
+                                Collection<Role> rolesServer = server.getRoles();
+                                Collection<Role> rolesUser = user.getRoles(server);
 
-                                for (Role r : roles) {
+                                int numRoles = 0;
+                                for (Role r : rolesServer) {
                                     String rName = r.getName();
-                                    if (rName.equalsIgnoreCase(role) || rName.equalsIgnoreCase(clas) || rName.equalsIgnoreCase(faction)) {
+                                    if (rName.equalsIgnoreCase(role) || rName.equalsIgnoreCase(clas) || rName.equalsIgnoreCase(faction) || rName.equalsIgnoreCase(score)) {
                                         r.addUser(user);
-                                        break;
+                                        numRoles++;
+                                        if (numRoles == 4) { //Roles for: faction, role, class, score
+                                            break;
+                                        }
                                     }
                                 }
+
 
                             }
 
