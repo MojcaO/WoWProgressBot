@@ -3,7 +3,10 @@ package mojcao.discord.wowprogressbot;
 import com.google.common.util.concurrent.FutureCallback;
 import de.btobastian.javacord.DiscordAPI;
 import de.btobastian.javacord.Javacord;
+import de.btobastian.javacord.entities.Server;
+import de.btobastian.javacord.entities.User;
 import de.btobastian.javacord.entities.message.Message;
+import de.btobastian.javacord.entities.permissions.Role;
 import de.btobastian.javacord.listener.message.MessageCreateListener;
 
 import org.jsoup.Jsoup;
@@ -12,6 +15,8 @@ import org.jsoup.nodes.Document;
 import java.io.IOException;
 import java.net.URL;
 import java.net.URLConnection;
+import java.util.ArrayList;
+import java.util.Collection;
 
 
 /**
@@ -30,7 +35,7 @@ public class WowProgBot {
             public void onSuccess(DiscordAPI api) {
                 // register listener
                 api.registerListener(new MessageCreateListener() {
-                    
+
                     public void onMessageCreate(DiscordAPI api, Message message) {
 
                         // check the content of the message
@@ -79,8 +84,11 @@ public class WowProgBot {
                                 int from = score.indexOf("Mythic+ Score: ");
                                 int to = score.indexOf("Ach. Points");
                                 score = score.substring(from+"Mythic+ Score: ".length(), to).trim();
-                                float points = Float.valueOf(score);
+                                //float points = Float.valueOf(score);
+                                int scoreTrunc = (Double.valueOf(score).intValue()/100)*100;
+
                                 message.reply(score);
+                                message.reply(String.valueOf(scoreTrunc));
 
 
                                 //Faction
@@ -104,7 +112,18 @@ public class WowProgBot {
                                 }
                                 message.reply(role);
 
+                                User user = message.getAuthor();
                                 //TODO: Set role, reply confirmation
+                                Server server = message.getChannelReceiver().getServer();
+                                Collection<Role> roles = server.getRoles();
+
+                                for (Role r : roles) {
+                                    String rName = r.getName();
+                                    if (rName.equalsIgnoreCase(role) || rName.equalsIgnoreCase(clas) || rName.equalsIgnoreCase(faction)) {
+                                        r.addUser(user);
+                                        break;
+                                    }
+                                }
 
                             }
 
