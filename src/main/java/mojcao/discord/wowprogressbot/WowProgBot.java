@@ -30,15 +30,7 @@ public class WowProgBot {
             public void onSuccess(DiscordAPI api) {
                 // register listener
                 api.registerListener(new MessageCreateListener() {
-
-                    /*public void onMessageCreate(DiscordAPI api, Message message) {
-                        // check the content of the message
-                        if (message.getContent().equalsIgnoreCase("ping")) {
-                            // reply to the message
-                            message.reply("pong");
-                        }
-                    }*/
-
+                    
                     public void onMessageCreate(DiscordAPI api, Message message) {
 
                         // check the content of the message
@@ -73,8 +65,7 @@ public class WowProgBot {
                                 url = url+region+"/"+realm+"/"+character;
                             }
 
-                            //Get m+ score
-                            //(TODO: get role, class)
+                            //Get HTML
                             Document doc = null;
                             try {
                                 doc = Jsoup.connect(url).get();
@@ -118,12 +109,6 @@ public class WowProgBot {
                             }
 
                             //TODO: catching exceptions, reply "Couldn't find"
-
-                            /*if (message.getAuthor().getName().equalsIgnoreCase("Shana")) {
-                                message.reply("hi :)");
-                            } else {
-                                message.reply("Who are you?");
-                            }*/
 
                         }
                     }
