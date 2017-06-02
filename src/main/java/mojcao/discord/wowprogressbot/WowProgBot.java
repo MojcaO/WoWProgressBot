@@ -13,10 +13,10 @@ import org.jsoup.Jsoup;
 import org.jsoup.nodes.Document;
 
 import java.io.IOException;
-import java.net.URL;
-import java.net.URLConnection;
+import java.lang.reflect.Array;
 import java.util.ArrayList;
 import java.util.Collection;
+import java.util.List;
 
 
 /**
@@ -27,7 +27,7 @@ public class WowProgBot {
     //public WowProgBot() {
     public static void main(String[] args) {
 
-        DiscordAPI api = Javacord.getApi("MzE1NTM3OTQyMzY4MDkyMTYx.DA-UEA.K6ZT-fU17_S_8QPklJcXynNruYM", true);
+        DiscordAPI api = Javacord.getApi("token", true);
         // connect
         api.setWaitForServersOnStartup(false);
         api.connect(new FutureCallback<DiscordAPI>() {
@@ -81,8 +81,12 @@ public class WowProgBot {
 
                                 //Mythic+ score
                                 String score = doc.select(".gearscore").text();
+                                if (score.length() < 1) {
+                                    message.reply("");
+                                }
                                 int from = score.indexOf("Mythic+ Score: ");
                                 int to = score.indexOf("Ach. Points");
+                                message.reply("Found "+score.length()+": "+score);
                                 score = score.substring(from+"Mythic+ Score: ".length(), to).trim();
                                 double points = Double.valueOf(score);
 
@@ -122,20 +126,27 @@ public class WowProgBot {
                                 User user = message.getAuthor();
                                 Server server = message.getChannelReceiver().getServer();
                                 Collection<Role> rolesServer = server.getRoles();
+
                                 Collection<Role> rolesUser = user.getRoles(server);
+                                ArrayList<Role> rolesAdd = new ArrayList<Role>();
 
                                 int numRoles = 0;
                                 for (Role r : rolesServer) {
                                     String rName = r.getName();
-                                    if (rName.equalsIgnoreCase(role) || rName.equalsIgnoreCase(clas) || rName.equalsIgnoreCase(faction) || rName.equalsIgnoreCase(score)) {
-                                        r.addUser(user);
+                                    if (rName.equalsIgnoreCase(role) || rName.equalsIgnoreCase(clas)
+                                            || rName.equalsIgnoreCase(faction) || rName.equalsIgnoreCase(score) ||
+                                            (rName.equalsIgnoreCase("rbg") && rolesUser.contains(r))) {
+
+                                        rolesAdd.add(r);
                                         numRoles++;
-                                        if (numRoles == 4) { //Roles for: faction, role, class, score
+                                        if (numRoles == 5) { //Roles for: faction, role, class, score, rbg
                                             break;
                                         }
                                     }
                                 }
+                                Role[] rolesArray = rolesAdd.toArray(new Role[numRoles]);
 
+                                server.updateRoles(user, rolesArray);
 
                             }
 
