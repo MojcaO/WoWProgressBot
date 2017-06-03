@@ -13,7 +13,7 @@
                 <configuration>
                     <appName>wow-progress-bot</appName>
                     <processTypes>
-                        <web>java $JAVA_OPTS -cp target/classes:target/dependency/* WoWProgBot</web>
+                        <web>java $JAVA_OPTS -cp target/classes:target/dependency/* main</web>
                     </processTypes>
                 </configuration>
 

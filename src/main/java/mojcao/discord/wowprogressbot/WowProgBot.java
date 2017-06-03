@@ -202,7 +202,7 @@ public class WowProgBot {
 
                 String scoreExact = getScoreExact(doc).toString();
                 String faction = getFaction(doc);
-                String factionIcon = "";
+                String factionIcon;
                 if (faction.equalsIgnoreCase("horde")) {
                     factionIcon = "https://worldofwarcraft.akamaized.net/static/components/Logo/Logo-horde-2a80e0466e.png";
                 } else {
@@ -246,6 +246,11 @@ public class WowProgBot {
         return doc.select("div.nav_block>a.guild>nobr").text();
     }
 
+    private static String getRaidProgress(Document doc) {
+        return "";
+        //TODO
+    }
+
     private static String getSpec(Document doc) {
         String spec = doc.select("table.rating td[style*='font-weight:bold']").text().trim();
         int from = spec.indexOf("(")+1;
@@ -254,8 +259,7 @@ public class WowProgBot {
     }
 
     private static String getRole(Document doc) {
-        String role = "";
-        role = doc.select("table.rating td[style*='font-weight:bold']").text().substring(0, 4).trim();
+        String role = doc.select("table.rating td[style*='font-weight:bold']").text().substring(0, 4).trim();
         if (role.equalsIgnoreCase("heal")) {
             role += "er";
         }
