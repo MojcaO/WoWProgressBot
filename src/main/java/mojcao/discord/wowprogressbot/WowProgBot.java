@@ -17,97 +17,50 @@ import java.awt.*;
 import java.io.IOException;
 import java.util.ArrayList;
 import java.util.Collection;
-
+import java.util.concurrent.Future;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Created by Mojca on 31. 05. 2017.
  */
 public class WowProgBot {
 
+    private static final long STARTTIME = System.currentTimeMillis();
+
     //public WowProgBot() {
     public static void main(String[] args) {
 
         DiscordAPI api = Javacord.getApi("token", true);
-        // connect
+        //connect
         api.setWaitForServersOnStartup(false);
         api.connect(new FutureCallback<DiscordAPI>() {
 
 
             public void onSuccess(DiscordAPI api) {
-                // register listener
+                //register listener
                 api.registerListener(new MessageCreateListener() {
 
                     public void onMessageCreate(DiscordAPI api, Message message) {
 
-                        // check the content of the message
+                        //check the content of the message
                         String content = message.getContent().toLowerCase();
 
-                        if (content.startsWith("!score") || content.startsWith("!roles") || content.startsWith("!wp")) {
+                        //Display bot information
+                        if (content.equalsIgnoreCase("!wp bot") || content.equalsIgnoreCase("!wpbot") ||
+                                 content.equalsIgnoreCase("!wp info") ||content.startsWith("!wowprogressbot")) {
 
-                            content = content.substring(content.indexOf(" ")).trim();
-                            String url = getUrl(content);
+                            displayBotInfo(api, message);
 
-                            //Get HTML
-                            Document doc = null;
-                            try {
-                                doc = Jsoup.connect(url).get();
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
-                            if (doc != null) {
+                        //Commands to update roles
+                        } else if (content.startsWith("!score ") || content.startsWith("!roles ") || content.startsWith("!wp ")) {
 
-                                String score = getScoreGroup(doc);
-                                String faction = getFaction(doc);
-                                String clas = WowProgBot.getClass(doc);
-                                String role = getRole(doc);  //Tank/Healer/DPS
+                            setRoles(message, content);
 
-                                setRoles(message, score, faction, clas, role);
+                        //Commands to look-up and display info
+                        } else if (content.startsWith("!who ") || content.startsWith("!lookup ") || content.startsWith("!info ")) {
 
-                            }
+                            lookup(message, content);
 
-                            //TODO: catching exceptions, reply "Couldn't find"
-
-                        } else if (content.startsWith("!who") || content.startsWith("!lookup")) {
-                            content = content.substring(content.indexOf(" ")).trim();
-                            String url = getUrl(content);
-
-                            //Get HTML
-                            Document doc = null;
-                            try {
-                                doc = Jsoup.connect(url).get();
-                            } catch (IOException e) {
-                                e.printStackTrace();
-                            }
-                            if (doc != null) {
-
-                                Double scoreExact = getScoreExact(doc);
-                                String faction = getFaction(doc);
-                                String clas = WowProgBot.getClass(doc);
-                                String role = getRole(doc);  //Tank/Healer/DPS
-
-                                //TODO: display
-                                EmbedBuilder eb = new EmbedBuilder();
-
-
-                                /*
-                                EmbedBuilder e1 = new EmbedBuilder();
-                                e1.setAuthor("Mr Smith");
-                                e1.setTitle("Title");
-                                e1.addField("name", "value", true);
-                                e1.addField("name2", "value2", true);
-                                e1.setFooter("Footer text ... BLA BLA");
-                                e1.setColor(new Color(26, 116, 47));
-                                e1.setImage("https://discordapp.com/assets/dc0a6320d907631d34e6655dff176295.svg");
-                                e1.setThumbnail("https://discordapp.com/assets/c6b26ba81f44b0c43697852e1e1d1420.svg");
-                                e1.setDescription("This is a cool description");
-                                */
-
-                                message.reply("", eb);
-
-
-                            }
-
-                            //TODO: catching exceptions, reply "Couldn't find"
                         }
                     }
                 });
@@ -119,19 +72,296 @@ public class WowProgBot {
         });
     }
 
+    private static void setRoles(Message message, String content) {
+        content = content.substring(content.indexOf(" ")).trim();
+        String url = getUrl(message, content);
+
+        //Get HTML
+        Document doc = null;
+        try {
+            doc = Jsoup.connect(url).get();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        if (doc != null) {
+            if (!doc.getElementsContainingText("Item Level:").isEmpty()) {
+
+                String score = getScoreGroup(doc);
+                String faction = getFaction(doc);
+                String clas = WowProgBot.getClass(doc);
+                String role = getRole(doc);  //Tank/Healer/DPS
+
+                User user = message.getAuthor();
+                Server server = message.getChannelReceiver().getServer();
+                Collection<Role> rolesServer = server.getRoles();
+
+                Collection<Role> rolesUser = user.getRoles(server);
+                ArrayList<Role> rolesAdd = new ArrayList<Role>();
+                String rolesString = "";
+
+                int numRoles = 0;
+                for (Role r : rolesServer) {
+                    String rName = r.getName();
+                    if (rName.equalsIgnoreCase(role) || rName.equalsIgnoreCase(clas)
+                            || rName.equalsIgnoreCase(faction) || rName.equalsIgnoreCase(score) ||
+                            (rName.equalsIgnoreCase("rbg") && rolesUser.contains(r))) {
+
+                        rolesAdd.add(r);
+                        rolesString += rName + ", ";
+                        numRoles++;
+                        if (numRoles == 5) { //Roles for: faction, role, class, score, rbg
+                            break;
+                        }
+                    }
+                }
+                if (numRoles>0) {
+                    rolesString = rolesString.substring(0, rolesString.length()-2);
+                }
+
+                Role[] rolesArray = rolesAdd.toArray(new Role[numRoles]);
+
+                server.updateRoles(user, rolesArray);
+
+
+
+                displaySuccess(message, "Updated roles for **"+message.getAuthor().getName()+"**: "+rolesString);
+
+
+            } else {
+                displayError(message, "Character not found.");
+            }
+        } else {
+            displayError(message, "Can't access https://www.wowprogress.com");
+        }
+    }
+
+    private static void displayBotInfo(DiscordAPI api, Message message) {
+        EmbedBuilder eb = new EmbedBuilder();
+
+        eb.setTitle("WoWProgressBot\n");
+        eb.setColor(new Color(78, 142, 32));
+        eb.addField("Author: ", "Shana#3957", true);
+        eb.addField("Library: ", "Javacord", true);
+        //eb.addField("Servers: ", String.valueOf(api.getServers().size()), true);
+        eb.addField("Uptime: ", getUptime(), true);
+        eb.addField("Commands: ", "• **Lookup:** !who/!lookup/!info [name] [realm] [region] " +
+                        "\n• **Update roles:** !score/!roles/!wp [name] [realm] [region]" +
+                        "\n• **Bot info:** !wp info ", false);
+        //eb.setUrl("@Shana#3957");
+        message.reply("", eb);
+    }
+
+    private static void lookup(Message message, String content) {
+        content = content.substring(content.indexOf(" ")).trim();
+
+        String url = "https://www.wowprogress.com/character/";
+        String character = "";
+        String realm = "";
+        String region = "eu";
+
+        //Get WoWProgress link to character
+        if (content.startsWith(url)) {
+            url = content;
+        } else {
+            if (content.endsWith(" eu")) {
+                region = "eu";
+                content = content.substring(0, content.lastIndexOf(" "));
+            } else if (content.endsWith(" us") || content.endsWith(" na")) {
+                region = "us";
+                content = content.substring(0, content.lastIndexOf(" "));
+            } else if (content.endsWith(" tw")) { //Taiwan
+                region = "tw";
+                content = content.substring(0, content.lastIndexOf(" "));
+            } else if (content.endsWith(" kr")) { //Korea
+                region = "kr";
+                content = content.substring(0, content.lastIndexOf(" "));
+            } else {
+                String regionServer = message.getChannelReceiver().getServer().getRegion().getKey();
+                if (regionServer.startsWith("us")) {
+                    region = "us";
+                } else if (regionServer.startsWith("eu")) {
+                    region = "eu";
+                }
+            }
+
+            character = content.substring(0, 1).toUpperCase() + content.substring(1, content.indexOf(" "));
+            realm = content.substring(content.indexOf(" ")).trim().replaceAll(" |'", "-");
+
+            url = url + region + "/" + realm + "/" + character;
+        }
+
+        //Get HTML
+        Document doc = null;
+        try {
+            doc = Jsoup.connect(url).get();
+        } catch (IOException e) {
+            e.printStackTrace();
+        }
+        if (doc != null) {
+            if (!doc.getElementsContainingText("Item level:").isEmpty()) {
+
+                String scoreExact = getScoreExact(doc).toString();
+                String faction = getFaction(doc);
+                String factionIcon = "";
+                if (faction.equalsIgnoreCase("horde")) {
+                    factionIcon = "https://worldofwarcraft.akamaized.net/static/components/Logo/Logo-horde-2a80e0466e.png";
+                } else {
+                    factionIcon = "https://worldofwarcraft.akamaized.net/static/components/Logo/Logo-alliance-bb36e70f5f.png";
+                }
+
+                String clas = WowProgBot.getClass(doc);
+                String role = getRole(doc);  //Tank/Healer/DPS
+                String ilvl = getItemLevel(doc).toString();
+                String armory = "https://" + region + ".battle.net/wow/en/character/" + realm + "/" + character;
+                String guild = getGuild(doc);
+                realm = getRegionRealm(doc).substring(3);
+                String spec = getSpec(doc);
+                String classIcon = getClassIcon(clas);
+                Color classColor = getClassColor(clas);
+
+                EmbedBuilder eb = new EmbedBuilder();
+                eb.setAuthor(character + " - " + realm + " (" + region.toUpperCase() + ")", url, classIcon);
+                eb.setColor(classColor);
+                eb.setDescription(spec + " " + clas + " (" + role + ") " + " <" + guild + ">");
+                eb.addField("Item level: ", ilvl, true);
+                eb.addField("M+ score: ", scoreExact, true);
+                eb.addField("WoWProgress: ", url, false);
+                eb.addField("Armory: ", armory, false);
+                eb.setThumbnail(factionIcon);
+
+                message.reply("", eb);
+            } else {
+                    displayError(message, "Character not found.");
+            }
+        } else {
+            displayError(message, "Can't access https://www.wowprogress.com");
+        }
+    }
+
+    private static String getRegionRealm(Document doc) {
+        return doc.select("a.nav_link").text();
+    }
+
+    private static String getGuild(Document doc) {
+        return doc.select("div.nav_block>a.guild>nobr").text();
+    }
+
+    private static String getSpec(Document doc) {
+        String spec = doc.select("table.rating td[style*='font-weight:bold']").text().trim();
+        int from = spec.indexOf("(")+1;
+        int to = spec.indexOf(")");
+        return spec.substring(from, to);
+    }
+
     private static String getRole(Document doc) {
         String role = "";
-        if (doc.select("table.rating td").text().contains("*")) {
-            role = doc.select("table.rating td").text().substring(0, 4).trim();
-            if (role.equalsIgnoreCase("heal")) {
-                role += "er";
-            }
+        role = doc.select("table.rating td[style*='font-weight:bold']").text().substring(0, 4).trim();
+        if (role.equalsIgnoreCase("heal")) {
+            role += "er";
         }
         return role;
     }
 
     private static String getClass(Document doc) {
-        return doc.select("i>span").text();
+        return doc.select("i>span").text().replace("_", " ");
+    }
+
+    private static String getClassIcon(String clas) {
+        clas = clas.replace(" ", "");
+        return "http://wow.zamimg.com/images/wow/icons/medium/class_"+clas+".jpg";
+    }
+
+    private static Color getClassColor(String clas) {
+        Color color;
+        String s = clas.toLowerCase();
+        if (s.equals("death knight")) {
+            color = new Color(196, 31, 59);
+
+        } else if (s.equals("demon hunter")) {
+            color = new Color(163, 48, 201);
+
+        } else if (s.equals("druid")) {
+            color = new Color(255, 125, 10);
+
+        } else if (s.equals("hunter")) {
+            color = new Color(171, 212, 115);
+
+        } else if (s.equals("mage")) {
+            color = new Color(105, 204, 240);
+
+        } else if (s.equals("monk")) {
+            color = new Color(0, 255, 150);
+
+        } else if (s.equals("paladin")) {
+            color = new Color(245, 140, 186);
+
+        } else if (s.equals("priest")) {
+            color = new Color(255, 255, 255);
+
+        } else if (s.equals("rogue")) {
+            color = new Color(255, 245, 105);
+
+        } else if (s.equals("shaman")) {
+            color = new Color(0, 112, 222);
+
+        } else if (s.equals("warlock")) {
+            color = new Color(148, 130, 201);
+
+        } else if (s.equals("warrior")) {
+            color = new Color(199, 156, 110);
+
+        } else {
+            color = new Color(255, 19, 13);
+
+        }
+        return color;
+    }
+
+    private static String getClassCrest(String clas) {
+        String crest;
+        String s = clas.toLowerCase();
+        if (s.equals("death knight")) {
+            crest = "https://hydra-media.cursecdn.com/wow.gamepedia.com/5/5d/Death_Knight_Crest.png";
+
+        } else if (s.equals("demon hunter")) {
+            crest = "https://hydra-media.cursecdn.com/wow.gamepedia.com/thumb/0/00/Demon_Hunter_Crest.png/547px-Demon_Hunter_Crest.png";
+            //https://hydra-media.cursecdn.com/wow.gamepedia.com/0/00/Demon_Hunter_Crest.png full size
+
+        } else if (s.equals("druid")) {
+            crest = "https://hydra-media.cursecdn.com/wow.gamepedia.com/e/ec/Druid_Crest.png";
+
+        } else if (s.equals("hunter")) {
+            crest = "https://hydra-media.cursecdn.com/wow.gamepedia.com/3/3e/Hunter_Crest.png";
+
+        } else if (s.equals("mage")) {
+            crest = "https://hydra-media.cursecdn.com/wow.gamepedia.com/0/04/Mage_Crest.png";
+
+        } else if (s.equals("monk")) {
+            crest = "https://hydra-media.cursecdn.com/wow.gamepedia.com/a/a4/Pandaren_Crest.png";
+
+        } else if (s.equals("paladin")) {
+            crest = "https://hydra-media.cursecdn.com/wow.gamepedia.com/8/82/Paladin_Crest.png";
+
+        } else if (s.equals("priest")) {
+            crest = "https://hydra-media.cursecdn.com/wow.gamepedia.com/5/50/Priest_Crest.png";
+
+        } else if (s.equals("rogue")) {
+            crest = "https://hydra-media.cursecdn.com/wow.gamepedia.com/0/02/Rogue_Crest.png";
+
+        } else if (s.equals("shaman")) {
+            crest = "https://hydra-media.cursecdn.com/wow.gamepedia.com/d/d2/Shaman_Crest.png";
+
+        } else if (s.equals("warlock")) {
+            crest = "https://hydra-media.cursecdn.com/wow.gamepedia.com/5/5e/Warlock_Crest.png";
+
+        } else if (s.equals("warrior")) {
+            crest = "https://hydra-media.cursecdn.com/wow.gamepedia.com/4/4f/Warrior_Crest.png";
+
+        } else {
+            crest = "";
+
+        }
+        return crest;
     }
 
     private static String getFaction(Document doc) {
@@ -143,7 +373,6 @@ public class WowProgBot {
     }
 
     private static String getScoreGroup(Document doc) {
-        //Mythic+ score
         double points = getScoreExact(doc);
         String score;
 
@@ -155,29 +384,41 @@ public class WowProgBot {
             score = "1800-"; //lowest rank
         }
 
-        //message.reply(score+", exact: "+points);
         return score;
     }
 
     private static Double getScoreExact(Document doc) {
-        //Mythic+ exact score
         String score = doc.select(".gearscore").text();
-        if (score.length() < 1) {
-            //TODO: message.reply("error");
-        }
         int from = score.indexOf("Mythic+ Score: ");
-        int to = score.indexOf("Ach. Points");
-        score = score.substring(from+"Mythic+ Score: ".length(), to).trim();
-        return Double.valueOf(score);
+        int to = score.indexOf("Ach. Points:");
+        if (score.length() < 1 || from < 1) {
+            score = "";
+        } else {
+            score = score.substring(from+"Mythic+ Score: ".length(), to).trim();
+        }
+
+        if (score.length()<1 || score.length()>8) {
+            return 0.;
+        } else {
+            return Double.valueOf(score);
+        }
     }
 
-    private static String getUrl(String content) {
+    private static Double getItemLevel(Document doc) {
+        String ilvl = doc.select(".gearscore").text();
+        int from = ilvl.indexOf("Item Level: ");
+        int to = ilvl.indexOf("Artifact Power:");
+        ilvl = ilvl.substring(from+"Item Level: ".length(), to).trim();
+        return Double.valueOf(ilvl);
+    }
+
+    private static String getUrl(Message message, String content) {
         String url = "https://www.wowprogress.com/character/";
         //Get WoWProgress link to character
         if (content.startsWith(url)) {
             url = content;
         } else {
-            String region = "eu";  //default
+            String region = "eu"; //default
             if (content.endsWith(" eu")) {
                 content = content.substring(0, content.lastIndexOf(" "));
             } else if (content.endsWith(" us") || content.endsWith(" na")) {
@@ -189,6 +430,13 @@ public class WowProgBot {
             } else if (content.endsWith(" kr")) { //Korea
                 region = "kr";
                 content = content.substring(0, content.lastIndexOf(" "));
+            } else {
+                String regionServer = message.getChannelReceiver().getServer().getRegion().getKey();
+                if (regionServer.startsWith("us")) {
+                    region = "us";
+                } else if (regionServer.startsWith("eu")) {
+                    region = "eu";
+                }
             }
 
             String character = content.substring(0, content.indexOf(" "));
@@ -199,31 +447,35 @@ public class WowProgBot {
         return url;
     }
 
-    private static void setRoles(Message message, String score, String faction, String clas, String role) {
-        //TODO: confirmation
-        User user = message.getAuthor();
-        Server server = message.getChannelReceiver().getServer();
-        Collection<Role> rolesServer = server.getRoles();
+    private static String getUptime() {
+        long millis = System.currentTimeMillis() - STARTTIME;
 
-        Collection<Role> rolesUser = user.getRoles(server);
-        ArrayList<Role> rolesAdd = new ArrayList<Role>();
+        long days = TimeUnit.MILLISECONDS.toDays(millis);
+        millis -= TimeUnit.DAYS.toMillis(days);
+        long hours = TimeUnit.MILLISECONDS.toHours(millis);
+        millis -= TimeUnit.HOURS.toMillis(hours);
+        long minutes = TimeUnit.MILLISECONDS.toMinutes(millis);
+        millis -= TimeUnit.MINUTES.toMillis(minutes);
+        long seconds = TimeUnit.MILLISECONDS.toSeconds(millis);
 
-        int numRoles = 0;
-        for (Role r : rolesServer) {
-            String rName = r.getName();
-            if (rName.equalsIgnoreCase(role) || rName.equalsIgnoreCase(clas)
-                    || rName.equalsIgnoreCase(faction) || rName.equalsIgnoreCase(score) ||
-                    (rName.equalsIgnoreCase("rbg") && rolesUser.contains(r))) {
+        return days+"d "+hours+"h "+minutes+"m "+seconds+"s";
+    }
 
-                rolesAdd.add(r);
-                numRoles++;
-                if (numRoles == 5) { //Roles for: faction, role, class, score, rbg
-                    break;
-                }
-            }
-        }
-        Role[] rolesArray = rolesAdd.toArray(new Role[numRoles]);
+    private static void displayError(Message message, String description) {
+        EmbedBuilder eb = new EmbedBuilder();
+        eb.setTitle(":x: Error");
+        eb.setColor(new Color(221, 46, 68));
+        eb.setDescription(description);
 
-        server.updateRoles(user, rolesArray);
+        message.reply("", eb);
+    }
+
+    private static void displaySuccess(Message message, String description) {
+        EmbedBuilder eb = new EmbedBuilder();
+        eb.setTitle(":white_check_mark: Success");
+        eb.setColor(new Color(119, 178, 85));
+        eb.setDescription(description);
+
+        message.reply("", eb);
     }
 }
