@@ -267,11 +267,18 @@ public class WowProgBot {
     }
 
     private static String getClass(Document doc) {
-        return doc.select("i>span").text().replace("_", " ");
+        String clas = doc.select("i>span").text();
+        clas = clas.substring(0, 1).toUpperCase()+clas.substring(1);
+        if (clas.equalsIgnoreCase("deathknight")) {
+            clas = "Death Knight";
+        } else if (clas.equalsIgnoreCase("demon_hunter")) {
+            clas = "Demon Hunter";
+        }
+        return clas;
     }
 
     private static String getClassIcon(String clas) {
-        clas = clas.replace(" ", "");
+        clas = clas.toLowerCase().replace(" ", "");
         return "http://wow.zamimg.com/images/wow/icons/medium/class_"+clas+".jpg";
     }
 
@@ -315,7 +322,7 @@ public class WowProgBot {
             color = new Color(199, 156, 110);
 
         } else {
-            color = new Color(255, 19, 13);
+            color = new Color(129, 123, 125);
 
         }
         return color;
