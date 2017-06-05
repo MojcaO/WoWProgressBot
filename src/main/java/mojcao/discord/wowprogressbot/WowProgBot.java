@@ -88,7 +88,7 @@ public class WowProgBot {
 
                 String score = getScoreGroup(doc);
                 String faction = getFaction(doc);
-                String clas = WowProgBot.getClass(doc);
+                String clas = getClass(doc);
                 String role = getRole(doc);  //Tank/Healer/DPS
 
                 User user = message.getAuthor();
@@ -162,6 +162,15 @@ public class WowProgBot {
         //Get WoWProgress link to character
         if (content.startsWith(url)) {
             url = content;
+            String[] split = url.split("/");
+            if (split[split.length-1].isEmpty()) {
+                character = split[split.length-2];
+                realm = split[split.length-3];
+            } else {
+                character = split[split.length-1];
+                realm = split[split.length-2];
+            }
+            character = character.substring(0, 1).toUpperCase()+character.substring(1);
         } else {
             if (content.endsWith(" eu")) {
                 region = "eu";
@@ -209,24 +218,31 @@ public class WowProgBot {
                     factionIcon = "https://worldofwarcraft.akamaized.net/static/components/Logo/Logo-alliance-bb36e70f5f.png";
                 }
 
-                String clas = WowProgBot.getClass(doc);
+                String clas = getClass(doc);
                 String role = getRole(doc);  //Tank/Healer/DPS
                 String ilvl = getItemLevel(doc).toString();
                 String armory = "https://" + region + ".battle.net/wow/en/character/" + realm + "/" + character;
+                String logs = "https://www.warcraftlogs.com/character/" + region + "/" + realm + "/" + character;
                 String guild = getGuild(doc);
                 realm = getRegionRealm(doc).substring(3);
                 String spec = getSpec(doc);
                 String classIcon = getClassIcon(clas);
                 Color classColor = getClassColor(clas);
+                String progress = getRaidProgress(doc);
+                String traits = getArtifactTraits(doc);
 
                 EmbedBuilder eb = new EmbedBuilder();
                 eb.setAuthor(character + " - " + realm + " (" + region.toUpperCase() + ")", url, classIcon);
                 eb.setColor(classColor);
                 eb.setDescription(spec + " " + clas + " (" + role + ") " + " <" + guild + ">");
                 eb.addField("Item level: ", ilvl, true);
+                eb.addField("Artifact traits: ", traits, true);
                 eb.addField("M+ score: ", scoreExact, true);
-                eb.addField("WoWProgress: ", url, false);
+                eb.addField("Raid progress: ", progress, true);
+                /*eb.addField("WoWProgress: ", url, false);
                 eb.addField("Armory: ", armory, false);
+                eb.addField("WarcraftLogs: ", logs, false);*/
+                eb.addField("Links: ", "[Armory]("+armory+") • [WoWProgress]("+url+") • [WarcraftLogs]("+logs+")", false);
                 eb.setThumbnail(factionIcon);
 
                 message.reply("", eb);
@@ -247,8 +263,29 @@ public class WowProgBot {
     }
 
     private static String getRaidProgress(Document doc) {
-        return "";
-        //TODO
+        String progress = doc.select("#tier_300>table:last-child span").text();
+        if (progress.contains("Mythic")) {
+            progress = (progress.length() - progress.replace("Mythic", "").length()) / "Mythic".length() + "/10M";
+        } else if (progress.contains("Heroic")) {
+            progress = (progress.length() - progress.replace("Heroic", "").length()) / "Heroic".length() + "/10H";
+        } else if (progress.contains("Normal")) {
+            progress = (progress.length() - progress.replace("Normal", "").length()) / "Normal".length() + "/10N";
+        } else {
+            progress = "0/0N";
+        }
+        return progress;
+    }
+
+    private static String getArtifactTraits(Document doc) {
+        String traits = doc.select("h2").text();
+        int from = traits.indexOf("(Level")+6;
+        int to = traits.indexOf(")");
+        if (from>0 && to>0) {
+            traits = traits.substring(from, to);
+        } else {
+            traits = "0";
+        }
+        return traits;
     }
 
     private static String getSpec(Document doc) {
@@ -443,9 +480,10 @@ public class WowProgBot {
                 content = content.substring(0, content.lastIndexOf(" "));
             } else {
                 String regionServer = message.getChannelReceiver().getServer().getRegion().getKey();
-                if (regionServer.startsWith("us")) {
+                if (regionServer.startsWith("us") || regionServer.equalsIgnoreCase("brazil")) {
                     region = "us";
-                } else if (regionServer.startsWith("eu")) {
+                } else if (regionServer.startsWith("eu") || regionServer.equalsIgnoreCase("frankfurt")
+                        || regionServer.equalsIgnoreCase("london") || regionServer.equalsIgnoreCase("amsterdam")) {
                     region = "eu";
                 }
             }

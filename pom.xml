@@ -13,15 +13,13 @@
                 <configuration>
                     <appName>wow-progress-bot</appName>
                     <processTypes>
-                        <web>java $JAVA_OPTS -cp target/classes:target/dependency/* main</web>
+                        <worker>java -cp target/classes:target/dependency/* mojcao.discord.wowprogressbot.WowProgBot</worker>
                     </processTypes>
                 </configuration>
 
             </plugin>
         </plugins>
     </build>
-
-
 
     <groupId>mojcao.discord</groupId>
     <artifactId>wowprogressbot</artifactId>
